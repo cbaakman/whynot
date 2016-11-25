@@ -10,7 +10,30 @@ from whynot.crawlers import DirCrawler, FileCrawler, crawl
 @patch('os.path.exists', return_value=True)
 @patch('os.path.isdir', return_value=True)
 @patch('os.path.getmtime', return_value=123456)
-def test_dir_crawler(mock_exists, mock_isdir, mock_getmtime):
+def test_dir_crawler_hssp(mock_exists, mock_isdir, mock_getmtime):
+    hssp_databank = DATABANKS[4]
+    assert hssp_databank['name'] == 'hssp'
+
+    with patch('os.walk') as mock_walk:
+        mock_walk.return_value = [
+            (
+                '/srv/data/hssp',
+                [],
+                ['1crn.hssp.bz2', '1z1l.hssp.bz2', '2h8u.hssp.bz2',
+                 '3qxq.hssp.bz2', '4qhh.hssp.bz2', 'ignoreme.txt']
+            ),
+        ]
+
+        entries = DirCrawler.crawl(hssp_databank['source'],
+                                   hssp_databank['regex'])
+        mock_walk.assert_called_with(hssp_databank['source'])
+        eq_(len(entries), 5)
+
+
+@patch('os.path.exists', return_value=True)
+@patch('os.path.isdir', return_value=True)
+@patch('os.path.getmtime', return_value=123456)
+def test_dir_crawler_pdb(mock_exists, mock_isdir, mock_getmtime):
     pdb_databank = DATABANKS[1]
     assert pdb_databank['name'] == 'pdb'
 
