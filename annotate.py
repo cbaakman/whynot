@@ -15,8 +15,6 @@ from utils import entries_by_pdbid, get_unannotated_entries, get_missing_entries
 from time import time
 from sets import Set
 
-mkdssp = '/usr/local/bin/mkdssp'
-
 # whynot comment files look like this:
 # COMMENT: <text 1>
 # <databank name>, <pdbid 1>
@@ -229,26 +227,24 @@ for entry in get_unannotated_entries('HSSP'):
         inputfile = '/srv/data/mmCIF/%s.cif.gz' % pdbid
 
     # Get hssp error from log file.
-    # If the log is missing, run mkhssp.
     errfile = '/srv/data/scratch/whynot2/hssp/%s.err' % pdbid
     if os.path.isfile (errfile):
-        line = open (errfile, 'r').read ()
-    else:
-        line = commands.getoutput('/usr/local/bin/mkhssp -a1 -i %s -o /tmp/%s.hssp.bz2 2>&1 >/dev/null' % (inputfile,pdbid))
+        with open(errfile, 'r') as f:
+            line = f.read()
 
-    # We filter for a set of commonly ocurring errors:
-    line = line.strip()
-    if line in ['Not enough sequences in PDB file of length 25', 'multiple occurrences', 'No hits found', 'empty protein, or no valid complete residues']:
-        entry ['comment'] = line
-        entry ['mtime'] = time()
-        update_entry (entry)
+            # We filter for a set of commonly ocurring errors:
+            line = line.strip()
+            if line in ['Not enough sequences in PDB file of length 25', 'multiple occurrences', 'No hits found', 'empty protein, or no valid complete residues']:
+                entry ['comment'] = line
+                entry ['mtime'] = time()
+                update_entry (entry)
 
 # DSSP files can be missing for multiple reasons:
 # 1 the structure has no protein, carbohydrates/nucleic acids only
 # 2 the structure hase no backbone, only alpha carbon atoms
 #
 # 1 can be found, using the predefined sets pdbidsnuconly and pdbidscarbonly.
-# 2 can be found by running dsspcmbi and catching its error output.
+# 2 can be found by reading the mkdssp standard error output.
 for dbname in ['DSSP', 'DSSP_REDO']:
     for entry in get_missing_entries (dbname):
 
@@ -276,11 +272,18 @@ for dbname in ['DSSP', 'DSSP_REDO']:
                 if not os.path.isfile(inputfile):
                     continue
 
-            # Run dsspcmbi and catch stderr:
-            lines = commands.getoutput('%s %s /tmp/%s.dssp 2>&1 >/dev/null' % (mkdssp, inputfile, pdbid)).split('\n')
-            if lines [-1].strip () == 'empty protein, or no valid complete residues':
-                entry['comment'] = 'No residues with complete backbone' # for backwards compatibility
-                entry['mtime'] = time()
+            # Read mkdssp stderr:
+            errfile = '/srv/data/scratch/whynot2/%s/%s.err' % (dbname.lower(),
+                                                               pdbid)
+            if os.path.isfile(errfile):
+                with open(errfile, 'r') as f:
+                    lines = f.readlines()
+                    if lines [-1].strip () == \
+                            'empty protein, or no valid complete residues':
+
+                        # for backwards compatibility:
+                        entry['comment'] = 'No residues with complete backbone'
+                        entry['mtime'] = time()
 
         if 'comment' in entry:
             update_entry (entry)
